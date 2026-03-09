@@ -8,7 +8,12 @@ import {
 } from 'lucide-react';
 
 // --- API Helper with Exponential Backoff ---
-let apiKey = "AIzaSyCPgvaS8oMYD7zD2SIBJ_q-zrX8cfbif2s";
+let apiKey = "";
+try {
+  apiKey = import.meta.env.VITE_GEMINI_API_KEY; 
+} catch (err) {
+  apiKey = ""; 
+}
 
 const OPENALEX_EMAIL = "abdulrsubin@gmail.com"; // Replace with your email for polite pool
 
