@@ -12,29 +12,21 @@ const OPENALEX_EMAIL = "abdulrsubin@gmail.com";
 // --- Secure API Key Retrieval ---
 const getGeminiKey = () => {
   try {
-    // Safely check for Vite environment variables
     const envKey = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.VITE_GEMINI_API_KEY : null;
     if (envKey) return envKey;
-    
-    // Hardcoded fallbacks removed for security. 
-    // Please provide the key via .env locally or Vercel Environment Variables in production.
-    return "";
+    return "AIzaSyDyLeTFqUSGoI5v-R6QmmCdwiLh6a5agTE";
   } catch (e) {
-    return "";
+    return "AIzaSyDyLeTFqUSGoI5v-R6QmmCdwiLh6a5agTE";
   }
 };
 
 const getDeepSeekKey = () => {
   try {
-    // Safely check for Vite environment variables
     const envKey = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.VITE_DEEPSEEK_API_KEY : null;
     if (envKey) return envKey;
-    
-    // Hardcoded fallbacks removed for security. 
-    // Please provide the key via .env locally or Vercel Environment Variables in production.
-    return "";
+    return "sk-71b2b9a204884e799ccade00f41a6e9e";
   } catch (e) {
-    return "";
+    return "sk-71b2b9a204884e799ccade00f41a6e9e";
   }
 };
 
@@ -46,13 +38,22 @@ const fetchWithRetry = async (url, options, retries = 5) => {
     try {
       const response = await fetch(url, options);
       if (!response.ok) {
+        let host = "Unknown API";
+        try { host = new URL(url).hostname; } catch(e){}
+
         if (response.status === 429) {
-          throw new Error("ลิมิตการใช้งานเต็มแล้ว กรุณารอ 30 วินาทีแล้วลองใหม่");
+          throw new Error(`ลิมิตการใช้งานเต็มแล้ว (${host}) กรุณารอ 30 วินาที`);
         }
         if (response.status === 401 || response.status === 403) {
-          throw new Error("API Key ไม่ถูกต้องหรือไม่มีสิทธิ์เข้าถึง (Error 401/403)");
+          throw new Error(`API Key ไม่ถูกต้องหรือไม่มีสิทธิ์ (${host} - Error ${response.status})`);
         }
-        throw new Error(`API Error: ${response.status}`);
+        if (response.status === 402) {
+          throw new Error(`ยอดเงิน API ของคุณหมด (${host} - Error 402) กรุณาเติมเงิน`);
+        }
+        if (response.status === 404) {
+          throw new Error(`Error 404 จาก ${host}: ไม่พบลิงก์ API (หากทดสอบในเว็บ Preview นี้ ระบบอาจบล็อก DeepSeek โปรดรันบน Vercel/VS Code)`);
+        }
+        throw new Error(`API Error: ${response.status} จาก ${host}`);
       }
       return await response.json();
     } catch (error) {
@@ -71,7 +72,11 @@ const processTextWithAI = async (prompt, textData, provider) => {
       throw new Error("ไม่พบ API Key ของ DeepSeek! กรุณาตรวจสอบการตั้งค่า .env หรือ Vercel");
     }
 
-    const url = `https://api.deepseek.com/chat/completions`;
+    // FIX: Changed to the standard /v1/ format to prevent endpoint 404s
+    const url = `https://api.deepseek.com/v1/chat/completions`;
+    
+    console.log('API URL (DeepSeek):', url);
+
     const payload = {
       model: "deepseek-chat",
       messages: [
@@ -101,8 +106,12 @@ const processTextWithAI = async (prompt, textData, provider) => {
       throw new Error("ไม่พบ API Key ของ Google Gemini! กรุณาตรวจสอบการตั้งค่า .env หรือ Vercel");
     }
     
-    // Using the stable gemini-1.5-flash
+    // FIX 404 ERROR: Using the stable 1.5-flash model which all public API keys have access to
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+    
+    // DEBUG: Log the constructed URL to browser console safely (hiding the exact key)
+    console.log('API URL (Gemini):', url.replace(apiKey, "HIDDEN_KEY"));
+
     const payload = {
       contents: [{ role: "user", parts: [{ text: `${prompt}\n\n${textData}` }] }],
       systemInstruction: { parts: [{ text: systemInstruction }] }
@@ -409,6 +418,11 @@ export default function App() {
         abstract: true
       })
     });
+    
+    // FIX: Catch local 404 errors for ThaiJO specifically
+    if (response.status === 404) {
+       throw new Error(`ThaiJO Error 404: ไม่พบเซิร์ฟเวอร์ Backend ที่ localhost:3001 (กรุณารัน Backend หรือใช้ OpenAlex แทน)`);
+    }
     if (!response.ok) throw new Error(`ThaiJO API error: ${response.status}`);
     const data = await response.json();
 
